@@ -1,0 +1,16 @@
+{
+  "name": "tcvn3-iconv-lite-umd-build",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Bundles the customized iconv-lite (with TCVN3 support) into a UMD file that drop-in replaces VS Code's @vscode/iconv-lite-umd.",
+  "scripts": {
+    "build": "webpack"
+  },
+  "devDependencies": {
+    "buffer": "^6.0.3",
+    "safer-buffer": "^2.1.2",
+    "string_decoder": "^1.3.0",
+    "webpack": "^5.102.1",
+    "webpack-cli": "^6.0.1"
+  }
+}

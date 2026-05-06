@@ -1,0 +1,46 @@
+name: Build and verify dist
+
+on:
+  push:
+    paths:
+      - 'src/**'
+      - 'scripts/**'
+      - '.github/workflows/build.yml'
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # Build the UMD bundle from the customized iconv-lite source.
+      - name: Install build deps
+        working-directory: src/build
+        run: npm ci || npm install
+      - name: Build bundle
+        working-directory: src/build
+        run: npm run build
+
+      # Regenerate dist/ artifacts so committed dist/ stays in sync with src/.
+      - name: Regenerate dist
+        run: node scripts/generate-dist.js
+
+      - name: Run tests
+        working-directory: src/iconv-lite
+        run: |
+          npm install --no-audit --no-fund
+          npx mocha test/tcvn3-test.js
+
+      - name: Verify dist matches committed
+        run: |
+          if ! git diff --quiet -- dist/; then
+            echo "ERROR: dist/ files are out of sync with src/. Re-run scripts/generate-dist.js and commit." >&2
+            git --no-pager diff -- dist/
+            exit 1
+          fi
