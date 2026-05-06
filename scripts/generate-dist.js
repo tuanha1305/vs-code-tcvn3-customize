@@ -81,12 +81,13 @@ var wbModule =
 fs.writeFileSync(path.join(distDir, "workbench-patch.js"), wbModule)
 log("workbench-patch.js  " + wbModule.length + " bytes")
 
-// 4. Version manifest.
+// 4. Version manifest. Deterministic — no timestamp, so a clean rebuild
+//    produces a byte-identical version.json. CI relies on this to verify
+//    that committed dist/ matches src/.
 var version = "1.0.0" // bump on releases
 var bundleSha = crypto.createHash("sha256").update(bundle).digest("hex")
 var versionInfo = {
   version: version,
-  builtAt: new Date().toISOString(),
   bundleSha256: bundleSha,
 }
 fs.writeFileSync(path.join(distDir, "version.json"), JSON.stringify(versionInfo, null, 2) + "\n")
