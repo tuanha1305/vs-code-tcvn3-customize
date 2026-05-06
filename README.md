@@ -8,33 +8,27 @@ Adds the legacy Vietnamese **TCVN3** (also called ABC) encoding to VS Code:
 
 Round-trip safe: every byte in the source file (including non-TCVN3 bytes such as GBK Chinese filenames in mixed-encoding game data files) survives `decode -> encode` byte-for-byte. Verified against 86 real-world files.
 
-## Install — one-liner
+## Install — one-liner (zero runtime deps)
 
 Quit VS Code completely first (including background `Code.exe` processes).
 
+The installers are **pure bash** / **pure PowerShell** — no Node.js, no Python, no extra tools to install.
+
 ### Linux / macOS
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/tuanha1305/vs-code-tcvn3-customize/main/install.sh | bash
-```
-
-With UI dropdown:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/tuanha1305/vs-code-tcvn3-customize/main/install.sh | bash -s -- --with-ui
 ```
 
+Uses only POSIX utilities (`curl`, `grep`, `head`, `tail`, `cat`).
+
 ### Windows (PowerShell)
-
-```powershell
-irm https://raw.githubusercontent.com/tuanha1305/vs-code-tcvn3-customize/main/install.ps1 | iex
-```
-
-With UI dropdown:
 
 ```powershell
 $env:TCVN3_WITH_UI=1; irm https://raw.githubusercontent.com/tuanha1305/vs-code-tcvn3-customize/main/install.ps1 | iex
 ```
+
+Uses native PowerShell 5+ (`Invoke-WebRequest`, `IndexOf`, `Substring`).
 
 If you get an execution-policy error:
 
