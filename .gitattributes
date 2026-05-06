@@ -1,0 +1,15 @@
+# Force LF line endings in shipped artifacts so the bash installer's anchor
+# matching works regardless of the contributor's OS. dist/ contents are
+# byte-sensitive (the search anchor in extensionHostProcess.js is LF on
+# disk, so our anchor file must be LF too).
+dist/* binary
+
+# Shell scripts must always be LF (CRLF in #!/usr/bin/env line breaks bash).
+*.sh text eol=lf
+
+# PowerShell prefers CRLF on Windows but accepts LF; pin to LF for diff sanity.
+*.ps1 text eol=lf
+
+# Node bundle — treat as binary to avoid ANY line-ending conversion. Webpack
+# output is byte-deterministic; CI verifies SHA256.
+dist/iconv-lite-umd.js binary

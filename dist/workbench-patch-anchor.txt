@@ -1,0 +1,1 @@
+windows1258:{labelLong:"Vietnamese (Windows 1258)",labelShort:"Windows 1258",order:35}

@@ -1,0 +1,1 @@
+(t.folderOptions.encoding==="tcvn3"?(function(){try{var r=globalThis.__tcvn3SearchEncode(i.pattern,!!i.isRegExp);i.pattern=r.pattern;i.isRegExp=r.isRegExp;}catch(_e){}})():t.folderOptions.encoding&&t.folderOptions.encoding!=="utf8"&&e.push("--encoding",t.folderOptions.encoding))

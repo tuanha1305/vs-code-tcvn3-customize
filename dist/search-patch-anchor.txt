@@ -1,0 +1,1 @@
+t.folderOptions.encoding&&t.folderOptions.encoding!=="utf8"&&e.push("--encoding",t.folderOptions.encoding)
