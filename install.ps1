@@ -111,9 +111,11 @@ try {
     Dl "$base/dist/search-patch-prepend.js"       (Join-Path $tmp 'search-patch-prepend.js')
     Dl "$base/dist/search-patch-anchor.txt"       (Join-Path $tmp 'search-patch-anchor.txt')
     Dl "$base/dist/search-patch-replacement.txt"  (Join-Path $tmp 'search-patch-replacement.txt')
-    Dl "$base/dist/uy-patch-anchor.txt"           (Join-Path $tmp 'uy-patch-anchor.txt')
-    Dl "$base/dist/uy-patch-replacement.txt"      (Join-Path $tmp 'uy-patch-replacement.txt')
-    Dl "$base/dist/version.json"                  (Join-Path $tmp 'version.json')
+    Dl "$base/dist/uy-patch-anchor.txt"              (Join-Path $tmp 'uy-patch-anchor.txt')
+    Dl "$base/dist/uy-patch-replacement.txt"         (Join-Path $tmp 'uy-patch-replacement.txt')
+    Dl "$base/dist/replace-offset-anchor.txt"        (Join-Path $tmp 'replace-offset-anchor.txt')
+    Dl "$base/dist/replace-offset-replacement.txt"   (Join-Path $tmp 'replace-offset-replacement.txt')
+    Dl "$base/dist/version.json"                     (Join-Path $tmp 'version.json')
     if ($WithUi) {
         Dl "$base/dist/workbench-patch-anchor.txt"    (Join-Path $tmp 'workbench-patch-anchor.txt')
         Dl "$base/dist/workbench-patch-injection.txt" (Join-Path $tmp 'workbench-patch-injection.txt')
@@ -128,8 +130,10 @@ try {
     $searchPrepend     = [System.IO.File]::ReadAllText((Join-Path $tmp 'search-patch-prepend.js'),     [System.Text.Encoding]::UTF8)
     $searchAnchor      = [System.IO.File]::ReadAllText((Join-Path $tmp 'search-patch-anchor.txt'),     [System.Text.Encoding]::UTF8)
     $searchReplacement = [System.IO.File]::ReadAllText((Join-Path $tmp 'search-patch-replacement.txt'), [System.Text.Encoding]::UTF8)
-    $uyAnchor          = [System.IO.File]::ReadAllText((Join-Path $tmp 'uy-patch-anchor.txt'),          [System.Text.Encoding]::UTF8)
-    $uyReplacement     = [System.IO.File]::ReadAllText((Join-Path $tmp 'uy-patch-replacement.txt'),     [System.Text.Encoding]::UTF8)
+    $uyAnchor              = [System.IO.File]::ReadAllText((Join-Path $tmp 'uy-patch-anchor.txt'),              [System.Text.Encoding]::UTF8)
+    $uyReplacement         = [System.IO.File]::ReadAllText((Join-Path $tmp 'uy-patch-replacement.txt'),         [System.Text.Encoding]::UTF8)
+    $replaceOffsetAnchor   = [System.IO.File]::ReadAllText((Join-Path $tmp 'replace-offset-anchor.txt'),        [System.Text.Encoding]::UTF8)
+    $replaceOffsetRepl     = [System.IO.File]::ReadAllText((Join-Path $tmp 'replace-offset-replacement.txt'),   [System.Text.Encoding]::UTF8)
     $uiAnchor    = $null; $uiInjection = $null
     if ($WithUi) {
         $uiAnchor    = [System.IO.File]::ReadAllText((Join-Path $tmp 'workbench-patch-anchor.txt'),    [System.Text.Encoding]::UTF8)
@@ -169,7 +173,7 @@ try {
             }
         }
 
-        # 2. Search patch (v3: byte search + Vietnamese preview decoder) -------
+        # 2. Search patch (v4: byte search + preview decoder + correct replace offsets) --
         $searchTarget = Join-Path $appDir 'out\vs\workbench\api\node\extensionHostProcess.js'
         $searchBackup = "$searchTarget.tcvn3-backup"
         if (-not (Test-Path $searchTarget)) {
@@ -177,11 +181,14 @@ try {
         } else {
             $searchContent = Read-Text $searchTarget
             $needSearchPatch = $false
-            if ($searchContent.Contains("TCVN3 SEARCH PATCH v3 BEGIN")) {
-                Log "Search patch v3 already present, skipping."
-            } elseif ($searchContent.Contains("TCVN3 SEARCH PATCH v2 BEGIN") -or $searchContent.Contains("TCVN3 SEARCH PATCH v1 BEGIN")) {
-                $oldVer = if ($searchContent.Contains("TCVN3 SEARCH PATCH v2 BEGIN")) { "v2" } else { "v1" }
-                Log "Old patch $oldVer found - upgrading to v3 (adds correct Vietnamese preview text)..."
+            if ($searchContent.Contains("TCVN3 SEARCH PATCH v4 BEGIN")) {
+                Log "Search patch v4 already present, skipping."
+            } elseif ($searchContent.Contains("TCVN3 SEARCH PATCH v3 BEGIN") -or
+                      $searchContent.Contains("TCVN3 SEARCH PATCH v2 BEGIN") -or
+                      $searchContent.Contains("TCVN3 SEARCH PATCH v1 BEGIN")) {
+                $oldVer = if ($searchContent.Contains("TCVN3 SEARCH PATCH v3 BEGIN")) { "v3" } `
+                          elseif ($searchContent.Contains("TCVN3 SEARCH PATCH v2 BEGIN")) { "v2" } else { "v1" }
+                Log "Old patch $oldVer found - upgrading to v4 (fixes replace byte/char offset mismatch)..."
                 if (Test-Path $searchBackup) {
                     Copy-Item $searchBackup $searchTarget -Force
                     $searchContent = Read-Text $searchTarget
@@ -203,16 +210,25 @@ try {
                                   $searchContent.Substring(0, $idx) +
                                   $searchReplacement +
                                   $searchContent.Substring($idx + $searchAnchor.Length)
-                    # Also apply uy() preview decoder patch
+                    # Apply replace-offset fix (byte→char column correction for Replace All)
+                    $roIdx = $newContent.IndexOf($replaceOffsetAnchor)
+                    if ($roIdx -ge 0) {
+                        $newContent = $newContent.Substring(0, $roIdx) +
+                                      $replaceOffsetRepl +
+                                      $newContent.Substring($roIdx + $replaceOffsetAnchor.Length)
+                    } else {
+                        Warn "replace-offset anchor not found; Replace All may land at wrong column."
+                    }
+                    # Apply uy() preview decoder patch
                     $uyIdx = $newContent.IndexOf($uyAnchor)
                     if ($uyIdx -ge 0) {
                         $newContent = $newContent.Substring(0, $uyIdx) +
                                       $uyReplacement +
                                       $newContent.Substring($uyIdx + $uyAnchor.Length)
-                        Log "extensionHostProcess.js patched v3 (byte search + Vietnamese preview decoder)."
+                        Log "extensionHostProcess.js patched v4 (byte search + preview decoder + replace offset fix)."
                     } else {
                         Warn "uy anchor not found; search works but preview text may be garbled."
-                        Log "extensionHostProcess.js patched v3 (byte search only)."
+                        Log "extensionHostProcess.js patched v4 (byte search + replace offset fix)."
                     }
                     Write-TextNoBom $searchTarget $newContent
                     $anyApplied = $true

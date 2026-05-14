@@ -119,9 +119,11 @@ dl "$BASE/dist/iconv-lite-umd.js"               "$TMPDIR/iconv-lite-umd.js"
 dl "$BASE/dist/search-patch-prepend.js"         "$TMPDIR/search-patch-prepend.js"
 dl "$BASE/dist/search-patch-anchor.txt"         "$TMPDIR/search-patch-anchor.txt"
 dl "$BASE/dist/search-patch-replacement.txt"    "$TMPDIR/search-patch-replacement.txt"
-dl "$BASE/dist/uy-patch-anchor.txt"             "$TMPDIR/uy-patch-anchor.txt"
-dl "$BASE/dist/uy-patch-replacement.txt"        "$TMPDIR/uy-patch-replacement.txt"
-dl "$BASE/dist/version.json"                    "$TMPDIR/version.json"
+dl "$BASE/dist/uy-patch-anchor.txt"              "$TMPDIR/uy-patch-anchor.txt"
+dl "$BASE/dist/uy-patch-replacement.txt"         "$TMPDIR/uy-patch-replacement.txt"
+dl "$BASE/dist/replace-offset-anchor.txt"        "$TMPDIR/replace-offset-anchor.txt"
+dl "$BASE/dist/replace-offset-replacement.txt"   "$TMPDIR/replace-offset-replacement.txt"
+dl "$BASE/dist/version.json"                     "$TMPDIR/version.json"
 if [[ $WITH_UI -eq 1 ]]; then
   dl "$BASE/dist/workbench-patch-anchor.txt"    "$TMPDIR/workbench-patch-anchor.txt"
   dl "$BASE/dist/workbench-patch-injection.txt" "$TMPDIR/workbench-patch-injection.txt"
@@ -202,23 +204,26 @@ for APP_DIR in "${APP_DIRS[@]}"; do
     ANY_APPLIED=1
   fi
 
-  # 2. Search patch (v3: byte search + Vietnamese preview decoder) -----------
+  # 2. Search patch (v4: byte search + preview decoder + replace offset fix) --
   SEARCH_TARGET="$APP_DIR/out/vs/workbench/api/node/extensionHostProcess.js"
   SEARCH_BACKUP="$SEARCH_TARGET.tcvn3-backup"
   if [[ ! -f "$SEARCH_TARGET" ]]; then
     c_warn "extensionHostProcess.js missing - skipping search patch"
-  elif grep -q "TCVN3 SEARCH PATCH v3 BEGIN" "$SEARCH_TARGET" 2>/dev/null; then
-    c_log "Search patch v3 already present, skipping."
+  elif grep -q "TCVN3 SEARCH PATCH v4 BEGIN" "$SEARCH_TARGET" 2>/dev/null; then
+    c_log "Search patch v4 already present, skipping."
   else
     NEED_SEARCH_PATCH=0
-    if grep -q "TCVN3 SEARCH PATCH v2 BEGIN" "$SEARCH_TARGET" 2>/dev/null || \
+    if grep -q "TCVN3 SEARCH PATCH v3 BEGIN" "$SEARCH_TARGET" 2>/dev/null || \
+       grep -q "TCVN3 SEARCH PATCH v2 BEGIN" "$SEARCH_TARGET" 2>/dev/null || \
        grep -q "TCVN3 SEARCH PATCH v1 BEGIN" "$SEARCH_TARGET" 2>/dev/null; then
-      if grep -q "TCVN3 SEARCH PATCH v2 BEGIN" "$SEARCH_TARGET" 2>/dev/null; then
+      if grep -q "TCVN3 SEARCH PATCH v3 BEGIN" "$SEARCH_TARGET" 2>/dev/null; then
+        OLD_VER="v3"
+      elif grep -q "TCVN3 SEARCH PATCH v2 BEGIN" "$SEARCH_TARGET" 2>/dev/null; then
         OLD_VER="v2"
       else
         OLD_VER="v1"
       fi
-      c_log "Old patch ${OLD_VER} found - upgrading to v3 (adds correct Vietnamese preview text)..."
+      c_log "Old patch ${OLD_VER} found - upgrading to v4 (fixes replace byte/char offset mismatch)..."
       if [[ -f "$SEARCH_BACKUP" ]]; then
         cp "$SEARCH_BACKUP" "$SEARCH_TARGET"
         NEED_SEARCH_PATCH=1
@@ -234,16 +239,24 @@ for APP_DIR in "${APP_DIRS[@]}"; do
       if replace_anchor "$SEARCH_TARGET" \
                         "$TMPDIR/search-patch-anchor.txt" \
                         "$TMPDIR/search-patch-replacement.txt"; then
-        # Also apply uy() preview decoder patch
+        # Apply replace-offset fix (byte→char column correction for Replace All)
+        if replace_anchor "$SEARCH_TARGET" \
+                          "$TMPDIR/replace-offset-anchor.txt" \
+                          "$TMPDIR/replace-offset-replacement.txt"; then
+          :
+        else
+          c_warn "replace-offset anchor not found; Replace All may land at wrong column."
+        fi
+        # Apply uy() preview decoder patch
         if replace_anchor "$SEARCH_TARGET" \
                           "$TMPDIR/uy-patch-anchor.txt" \
                           "$TMPDIR/uy-patch-replacement.txt"; then
           prepend_file "$SEARCH_TARGET" "$TMPDIR/search-patch-prepend.js"
-          c_log "extensionHostProcess.js patched v3 (byte search + Vietnamese preview decoder)."
+          c_log "extensionHostProcess.js patched v4 (byte search + preview decoder + replace offset fix)."
         else
           prepend_file "$SEARCH_TARGET" "$TMPDIR/search-patch-prepend.js"
           c_warn "uy anchor not found; search works but preview text may be garbled."
-          c_log "extensionHostProcess.js patched v3 (byte search only)."
+          c_log "extensionHostProcess.js patched v4 (byte search + replace offset fix)."
         fi
         ANY_APPLIED=1
       else

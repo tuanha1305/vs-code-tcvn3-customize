@@ -81,7 +81,7 @@ module.exports = function buildSearchPatch () {
   // Prepend block: defines globalThis.__tcvn3SearchEncode.
   // Kept as a string to inject verbatim into extensionHostProcess.js.
   var prepend =
-    '/* TCVN3 SEARCH PATCH v3 BEGIN */\n' +
+    '/* TCVN3 SEARCH PATCH v4 BEGIN */\n' +
     ';(function(){\n' +
     '  if (globalThis.__tcvn3SearchEncode) return;\n' +
     '  var MAP=' + mapLiteral + ';\n' +
@@ -131,7 +131,7 @@ module.exports = function buildSearchPatch () {
     '    return {pattern:out,isRegExp:true};\n' +
     '  };\n' +
     '})();\n' +
-    '/* TCVN3 SEARCH PATCH v3 END */\n'
+    '/* TCVN3 SEARCH PATCH v4 END */\n'
 
   // Replacement 1: rg `--encoding` push line — convert pattern to TCVN3 bytes.
   var anchor = 't.folderOptions.encoding&&t.folderOptions.encoding!=="utf8"&&e.push("--encoding",t.folderOptions.encoding)'
@@ -163,5 +163,32 @@ module.exports = function buildSearchPatch () {
       'return i.text' +
     '}'
 
-  return { prepend: prepend, anchor: anchor, replacement: replacement, uyAnchor: uyAnchor, uyReplacement: uyReplacement }
+  // Replacement 3: fix replace-operation byte↔char offset mismatch.
+  // VS Code creates `s=Buffer.from(r)` (UTF-8 re-encoding of decoded text) then
+  // slices at ripgrep's TCVN3 *byte* offsets. A TCVN3 high byte decodes to a
+  // Unicode char that takes 2-3 UTF-8 bytes, so the slice boundary is wrong and
+  // replacements land at the wrong column. Fix: keep raw TCVN3 bytes in
+  // `_tcvn3rb` and decode each pre-match slice through `__tcvn3Dec` so
+  // QB(I).lastLineLength gives the correct Unicode char count.
+  var replaceOffsetAnchor =
+    'r=uy(e.lines),s=Buffer.from(r),a=0,l=0,d=o;' +
+    'e.submatches.length===0&&e.submatches.push(r.length?{start:0,end:1,match:{text:r[0]}}:{start:0,end:0,match:{text:""}});' +
+    'let c=nt(e.submatches.map((g,f)=>{if(this.hitLimit)return null;' +
+    'this.numResults++,this.numResults>=this.maxResults&&(this.hitLimit=!0);' +
+    'let h=uy(g.match),I=s.slice(a,g.start).toString()'
+  var replaceOffsetReplacement =
+    'r=uy(e.lines),s=Buffer.from(r),' +
+    '_tcvn3rb=(globalThis.__tcvn3Dec&&e.lines&&e.lines.bytes?Buffer.from(e.lines.bytes,"base64"):null),' +
+    'a=0,l=0,d=o;' +
+    'e.submatches.length===0&&e.submatches.push(r.length?{start:0,end:1,match:{text:r[0]}}:{start:0,end:0,match:{text:""}});' +
+    'let c=nt(e.submatches.map((g,f)=>{if(this.hitLimit)return null;' +
+    'this.numResults++,this.numResults>=this.maxResults&&(this.hitLimit=!0);' +
+    'let h=uy(g.match),I=(_tcvn3rb?globalThis.__tcvn3Dec(_tcvn3rb.slice(a,g.start)):s.slice(a,g.start).toString())'
+
+  return {
+    prepend: prepend,
+    anchor: anchor, replacement: replacement,
+    uyAnchor: uyAnchor, uyReplacement: uyReplacement,
+    replaceOffsetAnchor: replaceOffsetAnchor, replaceOffsetReplacement: replaceOffsetReplacement
+  }
 }

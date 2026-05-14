@@ -1,0 +1,1 @@
+r=uy(e.lines),s=Buffer.from(r),a=0,l=0,d=o;e.submatches.length===0&&e.submatches.push(r.length?{start:0,end:1,match:{text:r[0]}}:{start:0,end:0,match:{text:""}});let c=nt(e.submatches.map((g,f)=>{if(this.hitLimit)return null;this.numResults++,this.numResults>=this.maxResults&&(this.hitLimit=!0);let h=uy(g.match),I=s.slice(a,g.start).toString()
