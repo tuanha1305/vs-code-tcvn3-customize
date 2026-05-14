@@ -81,7 +81,7 @@ module.exports = function buildSearchPatch () {
   // Prepend block: defines globalThis.__tcvn3SearchEncode.
   // Kept as a string to inject verbatim into extensionHostProcess.js.
   var prepend =
-    '/* TCVN3 SEARCH PATCH v1 BEGIN */\n' +
+    '/* TCVN3 SEARCH PATCH v3 BEGIN */\n' +
     ';(function(){\n' +
     '  if (globalThis.__tcvn3SearchEncode) return;\n' +
     '  var MAP=' + mapLiteral + ';\n' +
@@ -131,19 +131,37 @@ module.exports = function buildSearchPatch () {
     '    return {pattern:out,isRegExp:true};\n' +
     '  };\n' +
     '})();\n' +
-    '/* TCVN3 SEARCH PATCH v1 END */\n'
+    '/* TCVN3 SEARCH PATCH v3 END */\n'
 
-  // Replacement for the rg `--encoding` push line. Drops the flag when the
-  // encoding is tcvn3 and rewrites the search pattern to byte-level form.
+  // Replacement 1: rg `--encoding` push line — convert pattern to TCVN3 bytes.
   var anchor = 't.folderOptions.encoding&&t.folderOptions.encoding!=="utf8"&&e.push("--encoding",t.folderOptions.encoding)'
   var replacement =
     '(t.folderOptions.encoding==="tcvn3"' +
       '?(function(){' +
         'try{var r=globalThis.__tcvn3SearchEncode(i.pattern,!!i.isRegExp);' +
-        'i.pattern=r.pattern;i.isRegExp=r.isRegExp;}catch(_e){}' +
+        'i.pattern=r.pattern;i.isRegExp=r.isRegExp;e.push("--no-unicode");' +
+        // Lazily init the TCVN3 result decoder (used by the uy patch below).
+        'if(!globalThis.__tcvn3Dec)globalThis.__tcvn3Dec=(function(){' +
+          'try{var _iv=require("@vscode/iconv-lite-umd");' +
+          'return function(b){return _iv.decode(b,"tcvn3");};}' +
+          'catch(_e){return null;}})();' +
+        '}catch(_e){}' +
       '})()' +
       ':' + anchor +
     ')'
 
-  return { prepend: prepend, anchor: anchor, replacement: replacement }
+  // Replacement 2: uy() result-line decoder — decodes base64 bytes as TCVN3
+  // instead of raw UTF-8 so search result previews show correct Vietnamese text.
+  var uyAnchor = 'function uy(i){return i.bytes?Buffer.from(i.bytes,"base64").toString():i.text}'
+  var uyReplacement =
+    'function uy(i){' +
+      'if(i.bytes){' +
+        'var _b=Buffer.from(i.bytes,"base64");' +
+        'if(globalThis.__tcvn3Dec)try{return globalThis.__tcvn3Dec(_b);}catch(_e){}' +
+        'return _b.toString();' +
+      '}' +
+      'return i.text' +
+    '}'
+
+  return { prepend: prepend, anchor: anchor, replacement: replacement, uyAnchor: uyAnchor, uyReplacement: uyReplacement }
 }

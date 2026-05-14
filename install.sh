@@ -119,6 +119,8 @@ dl "$BASE/dist/iconv-lite-umd.js"               "$TMPDIR/iconv-lite-umd.js"
 dl "$BASE/dist/search-patch-prepend.js"         "$TMPDIR/search-patch-prepend.js"
 dl "$BASE/dist/search-patch-anchor.txt"         "$TMPDIR/search-patch-anchor.txt"
 dl "$BASE/dist/search-patch-replacement.txt"    "$TMPDIR/search-patch-replacement.txt"
+dl "$BASE/dist/uy-patch-anchor.txt"             "$TMPDIR/uy-patch-anchor.txt"
+dl "$BASE/dist/uy-patch-replacement.txt"        "$TMPDIR/uy-patch-replacement.txt"
 dl "$BASE/dist/version.json"                    "$TMPDIR/version.json"
 if [[ $WITH_UI -eq 1 ]]; then
   dl "$BASE/dist/workbench-patch-anchor.txt"    "$TMPDIR/workbench-patch-anchor.txt"
@@ -200,24 +202,54 @@ for APP_DIR in "${APP_DIRS[@]}"; do
     ANY_APPLIED=1
   fi
 
-  # 2. Search patch ----------------------------------------------------------
+  # 2. Search patch (v3: byte search + Vietnamese preview decoder) -----------
   SEARCH_TARGET="$APP_DIR/out/vs/workbench/api/node/extensionHostProcess.js"
   SEARCH_BACKUP="$SEARCH_TARGET.tcvn3-backup"
   if [[ ! -f "$SEARCH_TARGET" ]]; then
     c_warn "extensionHostProcess.js missing - skipping search patch"
-  elif grep -q "TCVN3 SEARCH PATCH v1 BEGIN" "$SEARCH_TARGET" 2>/dev/null; then
-    c_log "Search patch already present, skipping."
+  elif grep -q "TCVN3 SEARCH PATCH v3 BEGIN" "$SEARCH_TARGET" 2>/dev/null; then
+    c_log "Search patch v3 already present, skipping."
   else
-    [[ -f "$SEARCH_BACKUP" ]] || cp "$SEARCH_TARGET" "$SEARCH_BACKUP"
-    if replace_anchor "$SEARCH_TARGET" \
-                      "$TMPDIR/search-patch-anchor.txt" \
-                      "$TMPDIR/search-patch-replacement.txt" && \
-       prepend_file "$SEARCH_TARGET" "$TMPDIR/search-patch-prepend.js"; then
-      c_log "extensionHostProcess.js patched (Unicode search auto-encoded to TCVN3)."
-      ANY_APPLIED=1
+    NEED_SEARCH_PATCH=0
+    if grep -q "TCVN3 SEARCH PATCH v2 BEGIN" "$SEARCH_TARGET" 2>/dev/null || \
+       grep -q "TCVN3 SEARCH PATCH v1 BEGIN" "$SEARCH_TARGET" 2>/dev/null; then
+      if grep -q "TCVN3 SEARCH PATCH v2 BEGIN" "$SEARCH_TARGET" 2>/dev/null; then
+        OLD_VER="v2"
+      else
+        OLD_VER="v1"
+      fi
+      c_log "Old patch ${OLD_VER} found - upgrading to v3 (adds correct Vietnamese preview text)..."
+      if [[ -f "$SEARCH_BACKUP" ]]; then
+        cp "$SEARCH_BACKUP" "$SEARCH_TARGET"
+        NEED_SEARCH_PATCH=1
+      else
+        c_warn "${OLD_VER} backup not found; cannot upgrade safely. Run uninstall.sh first, then reinstall."
+      fi
     else
-      c_warn "Could not locate search anchor; restoring backup."
-      cp "$SEARCH_BACKUP" "$SEARCH_TARGET"
+      NEED_SEARCH_PATCH=1
+    fi
+
+    if [[ $NEED_SEARCH_PATCH -eq 1 ]]; then
+      [[ -f "$SEARCH_BACKUP" ]] || cp "$SEARCH_TARGET" "$SEARCH_BACKUP"
+      if replace_anchor "$SEARCH_TARGET" \
+                        "$TMPDIR/search-patch-anchor.txt" \
+                        "$TMPDIR/search-patch-replacement.txt"; then
+        # Also apply uy() preview decoder patch
+        if replace_anchor "$SEARCH_TARGET" \
+                          "$TMPDIR/uy-patch-anchor.txt" \
+                          "$TMPDIR/uy-patch-replacement.txt"; then
+          prepend_file "$SEARCH_TARGET" "$TMPDIR/search-patch-prepend.js"
+          c_log "extensionHostProcess.js patched v3 (byte search + Vietnamese preview decoder)."
+        else
+          prepend_file "$SEARCH_TARGET" "$TMPDIR/search-patch-prepend.js"
+          c_warn "uy anchor not found; search works but preview text may be garbled."
+          c_log "extensionHostProcess.js patched v3 (byte search only)."
+        fi
+        ANY_APPLIED=1
+      else
+        c_warn "Could not locate search anchor; restoring backup."
+        cp "$SEARCH_BACKUP" "$SEARCH_TARGET"
+      fi
     fi
   fi
 

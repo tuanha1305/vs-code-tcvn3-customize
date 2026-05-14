@@ -111,6 +111,8 @@ try {
     Dl "$base/dist/search-patch-prepend.js"       (Join-Path $tmp 'search-patch-prepend.js')
     Dl "$base/dist/search-patch-anchor.txt"       (Join-Path $tmp 'search-patch-anchor.txt')
     Dl "$base/dist/search-patch-replacement.txt"  (Join-Path $tmp 'search-patch-replacement.txt')
+    Dl "$base/dist/uy-patch-anchor.txt"           (Join-Path $tmp 'uy-patch-anchor.txt')
+    Dl "$base/dist/uy-patch-replacement.txt"      (Join-Path $tmp 'uy-patch-replacement.txt')
     Dl "$base/dist/version.json"                  (Join-Path $tmp 'version.json')
     if ($WithUi) {
         Dl "$base/dist/workbench-patch-anchor.txt"    (Join-Path $tmp 'workbench-patch-anchor.txt')
@@ -126,6 +128,8 @@ try {
     $searchPrepend     = [System.IO.File]::ReadAllText((Join-Path $tmp 'search-patch-prepend.js'),     [System.Text.Encoding]::UTF8)
     $searchAnchor      = [System.IO.File]::ReadAllText((Join-Path $tmp 'search-patch-anchor.txt'),     [System.Text.Encoding]::UTF8)
     $searchReplacement = [System.IO.File]::ReadAllText((Join-Path $tmp 'search-patch-replacement.txt'), [System.Text.Encoding]::UTF8)
+    $uyAnchor          = [System.IO.File]::ReadAllText((Join-Path $tmp 'uy-patch-anchor.txt'),          [System.Text.Encoding]::UTF8)
+    $uyReplacement     = [System.IO.File]::ReadAllText((Join-Path $tmp 'uy-patch-replacement.txt'),     [System.Text.Encoding]::UTF8)
     $uiAnchor    = $null; $uiInjection = $null
     if ($WithUi) {
         $uiAnchor    = [System.IO.File]::ReadAllText((Join-Path $tmp 'workbench-patch-anchor.txt'),    [System.Text.Encoding]::UTF8)
@@ -165,16 +169,31 @@ try {
             }
         }
 
-        # 2. Search patch ------------------------------------------------------
+        # 2. Search patch (v3: byte search + Vietnamese preview decoder) -------
         $searchTarget = Join-Path $appDir 'out\vs\workbench\api\node\extensionHostProcess.js'
         $searchBackup = "$searchTarget.tcvn3-backup"
         if (-not (Test-Path $searchTarget)) {
             Warn "extensionHostProcess.js missing - skipping search patch"
         } else {
             $searchContent = Read-Text $searchTarget
-            if ($searchContent.Contains("TCVN3 SEARCH PATCH v1 BEGIN")) {
-                Log "Search patch already present, skipping."
+            $needSearchPatch = $false
+            if ($searchContent.Contains("TCVN3 SEARCH PATCH v3 BEGIN")) {
+                Log "Search patch v3 already present, skipping."
+            } elseif ($searchContent.Contains("TCVN3 SEARCH PATCH v2 BEGIN") -or $searchContent.Contains("TCVN3 SEARCH PATCH v1 BEGIN")) {
+                $oldVer = if ($searchContent.Contains("TCVN3 SEARCH PATCH v2 BEGIN")) { "v2" } else { "v1" }
+                Log "Old patch $oldVer found - upgrading to v3 (adds correct Vietnamese preview text)..."
+                if (Test-Path $searchBackup) {
+                    Copy-Item $searchBackup $searchTarget -Force
+                    $searchContent = Read-Text $searchTarget
+                    $needSearchPatch = $true
+                } else {
+                    Warn "$oldVer backup not found; cannot upgrade safely. Run uninstall.ps1 first, then reinstall."
+                }
             } else {
+                $needSearchPatch = $true
+            }
+
+            if ($needSearchPatch) {
                 $idx = $searchContent.IndexOf($searchAnchor)
                 if ($idx -lt 0) {
                     Warn "Could not locate search anchor; skipping search patch."
@@ -184,8 +203,18 @@ try {
                                   $searchContent.Substring(0, $idx) +
                                   $searchReplacement +
                                   $searchContent.Substring($idx + $searchAnchor.Length)
+                    # Also apply uy() preview decoder patch
+                    $uyIdx = $newContent.IndexOf($uyAnchor)
+                    if ($uyIdx -ge 0) {
+                        $newContent = $newContent.Substring(0, $uyIdx) +
+                                      $uyReplacement +
+                                      $newContent.Substring($uyIdx + $uyAnchor.Length)
+                        Log "extensionHostProcess.js patched v3 (byte search + Vietnamese preview decoder)."
+                    } else {
+                        Warn "uy anchor not found; search works but preview text may be garbled."
+                        Log "extensionHostProcess.js patched v3 (byte search only)."
+                    }
                     Write-TextNoBom $searchTarget $newContent
-                    Log "extensionHostProcess.js patched (Unicode search auto-encoded to TCVN3)."
                     $anyApplied = $true
                 }
             }

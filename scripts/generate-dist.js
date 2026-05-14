@@ -60,9 +60,13 @@ var sp = buildSearchPatch()
 fs.writeFileSync(path.join(distDir, "search-patch-prepend.js"), sp.prepend)
 fs.writeFileSync(path.join(distDir, "search-patch-anchor.txt"), sp.anchor)
 fs.writeFileSync(path.join(distDir, "search-patch-replacement.txt"), sp.replacement)
+fs.writeFileSync(path.join(distDir, "uy-patch-anchor.txt"), sp.uyAnchor)
+fs.writeFileSync(path.join(distDir, "uy-patch-replacement.txt"), sp.uyReplacement)
 log("search-patch-prepend.js      " + sp.prepend.length + " bytes")
 log("search-patch-anchor.txt      " + sp.anchor.length + " bytes")
 log("search-patch-replacement.txt " + sp.replacement.length + " bytes")
+log("uy-patch-anchor.txt          " + sp.uyAnchor.length + " bytes")
+log("uy-patch-replacement.txt     " + sp.uyReplacement.length + " bytes")
 
 // Also keep the legacy JS-module form for `scripts/apply.js` (advanced users
 // who still want the Node entry point). Bootstrap installers don't read this.
@@ -88,7 +92,7 @@ fs.writeFileSync(path.join(distDir, "workbench-patch.js"), wbModule)
 // 4. Version manifest. Deterministic — no timestamp, so a clean rebuild
 //    produces a byte-identical version.json. CI relies on this to verify
 //    that committed dist/ matches src/.
-var version = "1.0.0" // bump on releases
+var version = "1.2.0" // bump on releases
 var bundleSha = crypto.createHash("sha256").update(bundle).digest("hex")
 var versionInfo = {
   version: version,
