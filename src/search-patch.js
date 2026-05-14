@@ -81,8 +81,14 @@ module.exports = function buildSearchPatch () {
   // Prepend block: defines globalThis.__tcvn3SearchEncode.
   // Kept as a string to inject verbatim into extensionHostProcess.js.
   var prepend =
-    '/* TCVN3 SEARCH PATCH v4 BEGIN */\n' +
+    '/* TCVN3 SEARCH PATCH v5 BEGIN */\n' +
     ';(function(){\n' +
+    // Eagerly init the TCVN3 decoder so it is available in every extension-host
+    // worker thread, not just the thread that happens to run the rg arg-builder.
+    '  if(!globalThis.__tcvn3Dec){' +
+    'try{var _tcvn3iv=require("@vscode/iconv-lite-umd");' +
+    'globalThis.__tcvn3Dec=function(b){return _tcvn3iv.decode(b,"tcvn3");};}' +
+    'catch(_e){}}\n' +
     '  if (globalThis.__tcvn3SearchEncode) return;\n' +
     '  var MAP=' + mapLiteral + ';\n' +
     '  var REGEX_META="\\\\^$.*+?()[]{}|/-";\n' +
@@ -131,7 +137,7 @@ module.exports = function buildSearchPatch () {
     '    return {pattern:out,isRegExp:true};\n' +
     '  };\n' +
     '})();\n' +
-    '/* TCVN3 SEARCH PATCH v4 END */\n'
+    '/* TCVN3 SEARCH PATCH v5 END */\n'
 
   // Replacement 1: rg `--encoding` push line — convert pattern to TCVN3 bytes.
   var anchor = 't.folderOptions.encoding&&t.folderOptions.encoding!=="utf8"&&e.push("--encoding",t.folderOptions.encoding)'
@@ -140,11 +146,6 @@ module.exports = function buildSearchPatch () {
       '?(function(){' +
         'try{var r=globalThis.__tcvn3SearchEncode(i.pattern,!!i.isRegExp);' +
         'i.pattern=r.pattern;i.isRegExp=r.isRegExp;e.push("--no-unicode");' +
-        // Lazily init the TCVN3 result decoder (used by the uy patch below).
-        'if(!globalThis.__tcvn3Dec)globalThis.__tcvn3Dec=(function(){' +
-          'try{var _iv=require("@vscode/iconv-lite-umd");' +
-          'return function(b){return _iv.decode(b,"tcvn3");};}' +
-          'catch(_e){return null;}})();' +
         '}catch(_e){}' +
       '})()' +
       ':' + anchor +

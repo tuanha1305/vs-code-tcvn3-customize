@@ -209,21 +209,24 @@ for APP_DIR in "${APP_DIRS[@]}"; do
   SEARCH_BACKUP="$SEARCH_TARGET.tcvn3-backup"
   if [[ ! -f "$SEARCH_TARGET" ]]; then
     c_warn "extensionHostProcess.js missing - skipping search patch"
-  elif grep -q "TCVN3 SEARCH PATCH v4 BEGIN" "$SEARCH_TARGET" 2>/dev/null; then
-    c_log "Search patch v4 already present, skipping."
+  elif grep -q "TCVN3 SEARCH PATCH v5 BEGIN" "$SEARCH_TARGET" 2>/dev/null; then
+    c_log "Search patch v5 already present, skipping."
   else
     NEED_SEARCH_PATCH=0
-    if grep -q "TCVN3 SEARCH PATCH v3 BEGIN" "$SEARCH_TARGET" 2>/dev/null || \
+    if grep -q "TCVN3 SEARCH PATCH v4 BEGIN" "$SEARCH_TARGET" 2>/dev/null || \
+       grep -q "TCVN3 SEARCH PATCH v3 BEGIN" "$SEARCH_TARGET" 2>/dev/null || \
        grep -q "TCVN3 SEARCH PATCH v2 BEGIN" "$SEARCH_TARGET" 2>/dev/null || \
        grep -q "TCVN3 SEARCH PATCH v1 BEGIN" "$SEARCH_TARGET" 2>/dev/null; then
-      if grep -q "TCVN3 SEARCH PATCH v3 BEGIN" "$SEARCH_TARGET" 2>/dev/null; then
+      if grep -q "TCVN3 SEARCH PATCH v4 BEGIN" "$SEARCH_TARGET" 2>/dev/null; then
+        OLD_VER="v4"
+      elif grep -q "TCVN3 SEARCH PATCH v3 BEGIN" "$SEARCH_TARGET" 2>/dev/null; then
         OLD_VER="v3"
       elif grep -q "TCVN3 SEARCH PATCH v2 BEGIN" "$SEARCH_TARGET" 2>/dev/null; then
         OLD_VER="v2"
       else
         OLD_VER="v1"
       fi
-      c_log "Old patch ${OLD_VER} found - upgrading to v4 (fixes replace byte/char offset mismatch)..."
+      c_log "Old patch ${OLD_VER} found - upgrading to v5 (eager decoder init for multi-worker fix)..."
       if [[ -f "$SEARCH_BACKUP" ]]; then
         cp "$SEARCH_BACKUP" "$SEARCH_TARGET"
         NEED_SEARCH_PATCH=1
@@ -252,11 +255,11 @@ for APP_DIR in "${APP_DIRS[@]}"; do
                           "$TMPDIR/uy-patch-anchor.txt" \
                           "$TMPDIR/uy-patch-replacement.txt"; then
           prepend_file "$SEARCH_TARGET" "$TMPDIR/search-patch-prepend.js"
-          c_log "extensionHostProcess.js patched v4 (byte search + preview decoder + replace offset fix)."
+          c_log "extensionHostProcess.js patched v5 (eager decoder + byte search + preview decoder + replace offset fix)."
         else
           prepend_file "$SEARCH_TARGET" "$TMPDIR/search-patch-prepend.js"
           c_warn "uy anchor not found; search works but preview text may be garbled."
-          c_log "extensionHostProcess.js patched v4 (byte search + replace offset fix)."
+          c_log "extensionHostProcess.js patched v5 (eager decoder + byte search + replace offset fix)."
         fi
         ANY_APPLIED=1
       else

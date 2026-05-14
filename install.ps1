@@ -181,14 +181,16 @@ try {
         } else {
             $searchContent = Read-Text $searchTarget
             $needSearchPatch = $false
-            if ($searchContent.Contains("TCVN3 SEARCH PATCH v4 BEGIN")) {
-                Log "Search patch v4 already present, skipping."
-            } elseif ($searchContent.Contains("TCVN3 SEARCH PATCH v3 BEGIN") -or
+            if ($searchContent.Contains("TCVN3 SEARCH PATCH v5 BEGIN")) {
+                Log "Search patch v5 already present, skipping."
+            } elseif ($searchContent.Contains("TCVN3 SEARCH PATCH v4 BEGIN") -or
+                      $searchContent.Contains("TCVN3 SEARCH PATCH v3 BEGIN") -or
                       $searchContent.Contains("TCVN3 SEARCH PATCH v2 BEGIN") -or
                       $searchContent.Contains("TCVN3 SEARCH PATCH v1 BEGIN")) {
-                $oldVer = if ($searchContent.Contains("TCVN3 SEARCH PATCH v3 BEGIN")) { "v3" } `
+                $oldVer = if ($searchContent.Contains("TCVN3 SEARCH PATCH v4 BEGIN")) { "v4" } `
+                          elseif ($searchContent.Contains("TCVN3 SEARCH PATCH v3 BEGIN")) { "v3" } `
                           elseif ($searchContent.Contains("TCVN3 SEARCH PATCH v2 BEGIN")) { "v2" } else { "v1" }
-                Log "Old patch $oldVer found - upgrading to v4 (fixes replace byte/char offset mismatch)..."
+                Log "Old patch $oldVer found - upgrading to v5 (eager decoder init for multi-worker fix)..."
                 if (Test-Path $searchBackup) {
                     Copy-Item $searchBackup $searchTarget -Force
                     $searchContent = Read-Text $searchTarget
@@ -225,10 +227,10 @@ try {
                         $newContent = $newContent.Substring(0, $uyIdx) +
                                       $uyReplacement +
                                       $newContent.Substring($uyIdx + $uyAnchor.Length)
-                        Log "extensionHostProcess.js patched v4 (byte search + preview decoder + replace offset fix)."
+                        Log "extensionHostProcess.js patched v5 (eager decoder + byte search + preview decoder + replace offset fix)."
                     } else {
                         Warn "uy anchor not found; search works but preview text may be garbled."
-                        Log "extensionHostProcess.js patched v4 (byte search + replace offset fix)."
+                        Log "extensionHostProcess.js patched v5 (eager decoder + byte search + replace offset fix)."
                     }
                     Write-TextNoBom $searchTarget $newContent
                     $anyApplied = $true
